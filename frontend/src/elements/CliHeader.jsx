@@ -1,0 +1,24 @@
+import React from 'react';
+import { LogOut } from 'lucide-react';
+import { useAuth } from '../App';
+
+const CliHeader = () => {
+  const { user, logout } = useAuth();
+
+  return (
+    <div className="bg-white border-b px-4 py-3">
+      <div className="flex justify-between items-center">
+        <h1 className="text-xl font-bold">Cleany - Client Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <span>Welcome, {user.name}</span>
+          <button onClick={logout} className="text-red-500 hover:underline">
+            <LogOut size={16} className="inline mr-1" />
+            Logout
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CliHeader;
