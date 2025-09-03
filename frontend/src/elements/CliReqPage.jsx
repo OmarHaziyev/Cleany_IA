@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { api, Loading } from '../App';
-import { useAuth } from '../App';
+import { Star, DollarSign, Clock } from 'lucide-react';
+import { api, Loading, useAuth } from '../App';
 
-const CleReqPage = () => {
+const CleReqPage = ({ onHireCleaner }) => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,6 +17,7 @@ const CleReqPage = () => {
   const fetchRequests = async () => {
     setLoading(true);
     try {
+      // Use user._id directly, which should work for both client and cleaner
       const cleanerId = user._id;
       const data = await api.getRequestsForCleaner(cleanerId);
       setRequests(data);
@@ -147,4 +148,4 @@ const CleReqPage = () => {
   );
 };
 
-export default CleReqPage;
+export default CliReqPage;

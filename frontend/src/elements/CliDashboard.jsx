@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import CliHeader from './CliHeader';
 import CliOfferPage from './CliOfferPage';
-import CliReqPage from './CliReqPage';
+import BrowseCleaners from './BrowseCleaners';
 import CreateRequestModal from './CreateRequestModal';
 import CreateOfferModal from './CreateOfferModal';
 import { api, Toast } from '../App';
@@ -43,7 +43,7 @@ const CliDashboard = () => {
         {error && <Toast message={error} type="error" onClose={() => setError('')} />}
 
         {activeTab === 'browse' && (
-          <CliReqPage onHireCleaner={setShowCreateRequest} />
+          <BrowseCleaners onHireCleaner={setShowCreateRequest} />
         )}
 
         {activeTab === 'offers' && (
