@@ -97,7 +97,13 @@ const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
     if (token && userData) {
-      setUser(JSON.parse(userData));
+      try {
+        setUser(JSON.parse(userData));
+      } catch (err) {
+        console.error('Error parsing user data:', err);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     }
     setLoading(false);
   }, []);
@@ -108,9 +114,13 @@ const AuthProvider = ({ children }) => {
         ? await api.loginClient(credentials)
         : await api.loginCleaner(credentials);
       
+      // Fix: Properly extract user data based on response structure
+      const userData = userType === 'client' ? response.client : response.cleaner;
+      const userWithType = { ...userData, userType };
+      
       localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify({ ...response[userType], userType }));
-      setUser({ ...response[userType], userType });
+      localStorage.setItem('user', JSON.stringify(userWithType));
+      setUser(userWithType);
       return response;
     } catch (error) {
       throw error;

@@ -1,19 +1,47 @@
 import Request from "../models/request.js";
 import OfferApplication from "../models/offerApplication.js";
 
+
 // Get all requests for a specific cleaner
 export async function getRequestsForCleaner(req, res) {
   try {
     const { cleanerId } = req.params;
     
-    const requests = await Request.find({ 
+    // Get direct requests to this cleaner
+    const directRequests = await Request.find({ 
       cleaner: cleanerId,
       status: { $in: ['pending', 'accepted'] }
     })
     .populate('client', 'name email phoneNumber address')
     .sort({ createdAt: -1 });
 
-    res.json(requests);
+    // Get applied offers (general requests where cleaner has applied)
+    const appliedOffers = await OfferApplication.find({ 
+      cleaner: cleanerId,
+      status: 'pending'
+    })
+    .populate({
+      path: 'offer',
+      populate: {
+        path: 'client',
+        select: 'name email phoneNumber address'
+      }
+    });
+
+    // Transform applied offers to match request structure
+    const transformedOffers = appliedOffers.map(app => ({
+      ...app.offer.toObject(),
+      status: 'pending',
+      requestType: 'general',
+      applicationId: app._id,
+      isApplied: true // Add flag to identify applied offers
+    }));
+
+    // Combine and sort all requests
+    const allRequests = [...directRequests, ...transformedOffers]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.json(allRequests);
   } catch (err) {
     console.error('Error fetching cleaner requests:', err);
     res.status(500).json({ message: 'Server error' });
