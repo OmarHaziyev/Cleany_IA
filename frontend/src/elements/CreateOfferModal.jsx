@@ -14,13 +14,19 @@ const CreateOfferModal = ({ onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     
     try {
+      // Combine deadline date and time
+      const deadlineDateTime = formData.deadline && formData.deadlineTime 
+        ? `${formData.deadline}T${formData.deadlineTime}:00.000Z`
+        : formData.deadline;
+
       await api.createRequest({
         ...formData,
+        deadline: deadlineDateTime,
         requestType: 'general'
       });
       onSuccess();

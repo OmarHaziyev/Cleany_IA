@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import CleHeader from './CleHeader';
 import CleOfferPage from './CleOfferPage';
 import CleReqPage from './CleReqPage';
+import ClePastJobsPage from './ClePastJobsPage';
 import { Toast } from '../App';
 
 const CleDashboard = () => {
@@ -30,6 +31,12 @@ const CleDashboard = () => {
           >
             Available Offers
           </button>
+          <button
+            onClick={() => setActiveTab('pastjobs')}
+            className={`px-4 py-2 rounded ${activeTab === 'pastjobs' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+          >
+            Past Jobs
+          </button>
         </div>
 
         {error && <Toast message={error} type="error" onClose={() => setError('')} />}
@@ -37,6 +44,7 @@ const CleDashboard = () => {
         <div>
           {activeTab === 'requests' && <CleReqPage onError={handleError} />}
           {activeTab === 'offers' && <CleOfferPage onError={handleError} />}
+          {activeTab === 'pastjobs' && <ClePastJobsPage onError={handleError} />}
         </div>
       </div>
     </div>

@@ -142,7 +142,7 @@ const CleOfferPage = () => {
                     {offer.deadline && (
                       <p className={`text-sm mt-1 ${isDeadlineSoon(offer.deadline) ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
                         <Clock size={14} className="inline mr-1" />
-                        Apply by: {new Date(offer.deadline).toLocaleDateString()}
+                        Apply by: {formatDeadline(offer.deadline)}
                         {isDeadlineSoon(offer.deadline) && ' ⚠️ Soon!'}
                       </p>
                     )}
