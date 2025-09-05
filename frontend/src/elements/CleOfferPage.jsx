@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Clock } from 'lucide-react';
 import { api, Loading, useAuth } from '../App';
 
+const formatDeadline = (deadline) => {
+  const date = new Date(deadline);
+  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
 const CleOfferPage = () => {
   const [offers, setOffers] = useState([]);
   const [appliedOffers, setAppliedOffers] = useState(new Set());

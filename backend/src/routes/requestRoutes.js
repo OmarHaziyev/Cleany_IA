@@ -21,7 +21,6 @@ router.get('/jobs/client/:clientId/completed', protect, roleProtect('client'), g
 router.put('/requests/:requestId/rate', protect, roleProtect('client'), rateRequest);
 router.get('/offers/pending', protect, roleProtect('client'), getPendingOffers);
 router.post('/offers/:requestId/select/:applicationId', protect, roleProtect('client'), selectCleanerForOffer);
-
 // Cleaner routes (protected)
 router.get('/requests/cleaner/:cleanerId', getRequestsForCleaner);
 router.get('/requests/general', protect, roleProtect('cleaner'), getGeneralRequests);

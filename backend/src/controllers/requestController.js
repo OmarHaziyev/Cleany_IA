@@ -179,12 +179,12 @@ export async function getCompletedJobs(req, res) {
 export async function getCompletedJobsForClient(req, res) {
   try {
     const { clientId } = req.params;
-
+    
     const jobs = await Request.find({
       client: clientId,
       status: 'completed'
     })
-    .populate('cleaner', 'name email')
+    .populate('cleaner', 'name email hourlyPrice')
     .sort({ updatedAt: -1 });
 
     res.json(jobs);
@@ -389,3 +389,18 @@ export async function selectCleanerForOffer(req, res) {
     res.status(500).json({ message: 'Server error' });
   }
 }
+
+const checkAndCompleteJobs = async () => {
+  const now = new Date();
+  const acceptedJobs = await Request.find({ status: 'accepted' });
+  
+  for (let job of acceptedJobs) {
+    const jobDate = new Date(job.date);
+    const [endHour, endMinute] = job.endTime.split(':').map(Number);
+    jobDate.setHours(endHour, endMinute);
+    
+    if (now > jobDate) {
+      await Request.findByIdAndUpdate(job._id, { status: 'completed' });
+    }
+  }
+};

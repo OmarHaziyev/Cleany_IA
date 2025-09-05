@@ -15,26 +15,26 @@ const CreateOfferModal = ({ onClose, onSuccess }) => {
   const [error, setError] = useState('');
 
 const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      // Combine deadline date and time
-      const deadlineDateTime = formData.deadline && formData.deadlineTime 
-        ? `${formData.deadline}T${formData.deadlineTime}:00.000Z`
-        : formData.deadline;
+  e.preventDefault();
+  setLoading(true);
+  
+  try {
+    // Combine date and time for deadline
+    const deadlineDateTime = formData.deadline && formData.deadlineTime 
+      ? `${formData.deadline}T${formData.deadlineTime}:00`
+      : null;
 
-      await api.createRequest({
-        ...formData,
-        deadline: deadlineDateTime,
-        requestType: 'general'
-      });
-      onSuccess();
-    } catch (err) {
-      setError(err.message);
-    }
-    setLoading(false);
-  };
+    await api.createRequest({
+      ...formData,
+      deadline: deadlineDateTime,
+      requestType: 'general'
+    });
+    onSuccess();
+  } catch (err) {
+    setError(err.message);
+  }
+  setLoading(false);
+};
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
@@ -114,14 +114,23 @@ const handleSubmit = async (e) => {
           
           <div>
             <label className="block text-sm font-medium mb-1">Application Deadline</label>
-            <input
-              type="date"
-              className="w-full px-3 py-2 border rounded"
-              value={formData.deadline}
-              onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
-              min={new Date().toISOString().split('T')[0]}
-              required
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="date"
+                className="w-full px-3 py-2 border rounded"
+                value={formData.deadline}
+                onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
+                min={new Date().toISOString().split('T')[0]}
+                required
+              />
+              <input
+                type="time"
+                className="w-full px-3 py-2 border rounded"
+                value={formData.deadlineTime || '23:59'}
+                onChange={(e) => setFormData(prev => ({ ...prev, deadlineTime: e.target.value }))}
+                required
+              />
+            </div>
           </div>
           
           <div>

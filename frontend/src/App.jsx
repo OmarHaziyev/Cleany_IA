@@ -59,6 +59,8 @@ export const api = {
   getAllCleaners: () => api.request('/cleaners'),
   getCleanerById: (id) => api.request(`/cleaners/${id}`),
   filterCleaners: (filters) => api.request('/cleaners/filter', { method: 'POST', body: filters }),
+  // In App.jsx, in the api object, add this line:
+  getCompletedJobs: (cleanerId) => api.request(`/jobs/cleaner/${cleanerId}/completed`),
 
   // Request endpoints
   createRequest: (data) => api.request('/requests', { method: 'POST', body: data }),
@@ -69,6 +71,7 @@ export const api = {
   getPendingOffers: () => api.request('/offers/pending'),
   selectCleanerForOffer: (requestId, applicationId) => api.request(`/offers/${requestId}/select/${applicationId}`, { method: 'POST' }),
   rateRequest: (requestId, rating, review) => api.request(`/requests/${requestId}/rate`, { method: 'PUT', body: { rating, review } }),
+  getCompletedJobsForClient: (clientId) => api.request(`/jobs/client/${clientId}/completed`),
 };
 
 // Simple Toast Component

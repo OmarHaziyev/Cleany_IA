@@ -6,6 +6,8 @@ import BrowseCleaners from './BrowseCleaners';
 import CreateRequestModal from './CreateRequestModal';
 import CreateOfferModal from './CreateOfferModal';
 import { api, Toast } from '../App';
+import CliPastJobsPage from './CliPastJobsPage';
+
 
 const CliDashboard = () => {
   const [activeTab, setActiveTab] = useState('browse');
@@ -32,6 +34,12 @@ const CliDashboard = () => {
             My Offers
           </button>
           <button
+            onClick={() => setActiveTab('pastjobs')}
+            className={`px-4 py-2 rounded ${activeTab === 'pastjobs' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+          >
+            Past Jobs
+          </button>
+          <button
             onClick={() => setShowCreateOffer(true)}
             className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
           >
@@ -42,13 +50,15 @@ const CliDashboard = () => {
 
         {error && <Toast message={error} type="error" onClose={() => setError('')} />}
 
-        {activeTab === 'browse' && (
-          <BrowseCleaners onHireCleaner={setShowCreateRequest} />
-        )}
+      {activeTab === 'browse' && (
+      <BrowseCleaners onHireCleaner={setShowCreateRequest} />
+      )}
 
-        {activeTab === 'offers' && (
-          <CliOfferPage />
-        )}
+      {activeTab === 'offers' && (
+        <CliOfferPage />
+      )}
+
+      {activeTab === 'pastjobs' && <CliPastJobsPage />}
       </div>
 
       {/* Create Request Modal */}
