@@ -1,12 +1,62 @@
 import Cleaner from "../models/cleaner.js";
 import bcrypt from 'bcryptjs';
-import jwt from "jsonwebtoken"
+import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 export async function getAllCleanersForDashboard(_, res){ // tested
    try {
-    // Fetch a random set of cleaners
+    // Fetch a random set of cleaners with their ratings
     const cleaners = await Cleaner.aggregate([
-      { $sample: { size: 20 } }  // This will return 20 random cleaners for paging
+      { $sample: { size: 20 } },  // Get 20 random cleaners
+      {
+        $lookup: {
+          from: 'requests',
+          localField: '_id',
+          foreignField: 'cleaner',
+          as: 'completedJobs',
+          pipeline: [
+            {
+              $match: {
+                status: 'completed',
+                rating: { $exists: true, $ne: null }
+              }
+            },
+            {
+              $project: {
+                rating: 1,
+                review: 1
+              }
+            }
+          ]
+        }
+      },
+      {
+        $addFields: {
+          averageRating: {
+            $cond: {
+              if: { $gt: [{ $size: '$completedJobs' }, 0] },
+              then: { $avg: '$completedJobs.rating' },
+              else: 0
+            }
+          },
+          totalReviews: { $size: '$completedJobs' },
+          reviews: {
+            $map: {
+              input: { $slice: ['$completedJobs', 5] }, // Get last 5 reviews
+              as: 'job',
+              in: {
+                rating: '$$job.rating',
+                review: '$$job.review'
+              }
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          completedJobs: 0 // Remove the temporary field
+        }
+      }
     ]);
 
     // If no cleaners are found
@@ -14,7 +64,7 @@ export async function getAllCleanersForDashboard(_, res){ // tested
       return res.status(404).json({ message: 'No cleaners found' });
     }
     
-    // Return the random list of cleaners
+    // Return the random list of cleaners with ratings
     res.json(cleaners);
   } catch (error) {
     console.error(error);
@@ -65,7 +115,40 @@ export async function filterCleaners(req, res) { // tested
 
     const randomCleaners = await Cleaner.aggregate([
       { $match: { _id: { $in: cleaners.map(c => c._id) } } },
-      { $sample: { size: 20 } } // 20 random cleaners per page 
+      { $sample: { size: 20 } }, // 20 random cleaners per page 
+      {
+        $lookup: {
+          from: 'requests',
+          localField: '_id',
+          foreignField: 'cleaner',
+          as: 'completedJobs',
+          pipeline: [
+            {
+              $match: {
+                status: 'completed',
+                rating: { $exists: true, $ne: null }
+              }
+            }
+          ]
+        }
+      },
+      {
+        $addFields: {
+          averageRating: {
+            $cond: {
+              if: { $gt: [{ $size: '$completedJobs' }, 0] },
+              then: { $avg: '$completedJobs.rating' },
+              else: 0
+            }
+          },
+          totalReviews: { $size: '$completedJobs' }
+        }
+      },
+      {
+        $project: {
+          completedJobs: 0
+        }
+      }
     ]);
 
     res.json(randomCleaners);
@@ -77,9 +160,94 @@ export async function filterCleaners(req, res) { // tested
 
 export async function getCleanerByID(req, res) { //tested
     try{
-    const cleaner = await Cleaner.findById(req.params.id);
-    if (!cleaner) {return res.status(404).json({message: "Cleaner not found!"})};
-    res.json(cleaner);
+    const cleanerId = req.params.id;
+    
+    // Get cleaner with detailed ratings and reviews
+    const cleanerData = await Cleaner.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(cleanerId) } },
+      {
+        $lookup: {
+          from: 'requests',
+          localField: '_id',
+          foreignField: 'cleaner',
+          as: 'completedJobs',
+          pipeline: [
+            {
+              $match: {
+                status: 'completed',
+                rating: { $exists: true, $ne: null }
+              }
+            },
+            {
+              $lookup: {
+                from: 'clients',
+                localField: 'client',
+                foreignField: '_id',
+                as: 'clientInfo',
+                pipeline: [
+                  {
+                    $project: {
+                      name: 1,
+                      _id: 1
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              $addFields: {
+                clientInfo: { $arrayElemAt: ['$clientInfo', 0] }
+              }
+            },
+            {
+              $project: {
+                rating: 1,
+                review: 1,
+                date: 1,
+                service: 1,
+                createdAt: 1,
+                clientName: '$clientInfo.name'
+              }
+            }
+          ]
+        }
+      },
+      {
+        $addFields: {
+          averageRating: {
+            $cond: {
+              if: { $gt: [{ $size: '$completedJobs' }, 0] },
+              then: { $avg: '$completedJobs.rating' },
+              else: 0
+            }
+          },
+          totalReviews: { $size: '$completedJobs' },
+          totalCompletedJobs: { $size: '$completedJobs' },
+          reviews: {
+            $slice: [
+              {
+                $sortArray: {
+                  input: '$completedJobs',
+                  sortBy: { createdAt: -1 }
+                }
+              },
+              10
+            ]
+          }
+        }
+      },
+      {
+        $project: {
+          completedJobs: 0 // Remove the temporary field
+        }
+      }
+    ]);
+
+    if (!cleanerData.length) {
+      return res.status(404).json({message: "Cleaner not found!"});
+    }
+
+    res.json(cleanerData[0]);
     }
     catch(err){
         console.error("Error in getCleanerByID controller", err);

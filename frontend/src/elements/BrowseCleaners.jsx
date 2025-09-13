@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Star, DollarSign, Clock } from 'lucide-react';
+import { Star, DollarSign, Clock, Eye, MessageSquare } from 'lucide-react';
 import { api, Loading } from '../App';
 
-const BrowseCleaners = ({ onHireCleaner }) => {
+const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
   const [cleaners, setCleaners] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -81,7 +81,17 @@ const BrowseCleaners = ({ onHireCleaner }) => {
                   
                   <div className="flex items-center gap-2">
                     <Star size={16} className="text-yellow-500" />
-                    <span>{cleaner.stars || 0} stars</span>
+                    <span className="flex items-center gap-1">
+                      {cleaner.averageRating > 0 ? (
+                        <>
+                          <span className="font-medium">{cleaner.averageRating.toFixed(1)}</span>
+                          <span className="text-yellow-400">★</span>
+                          <span className="text-gray-500 text-sm">({cleaner.totalReviews} reviews)</span>
+                        </>
+                      ) : (
+                        <span className="text-gray-500">No reviews yet</span>
+                      )}
+                    </span>
                   </div>
 
                   <div className="flex items-start gap-2">
@@ -109,23 +119,43 @@ const BrowseCleaners = ({ onHireCleaner }) => {
                   </div>
                 </div>
 
-                {cleaner.comments && cleaner.comments.length > 0 && (
+                {/* Show sample reviews if available */}
+                {cleaner.reviews && cleaner.reviews.length > 0 && (
                   <div className="mb-4">
-                    <h4 className="font-medium mb-2">Recent Reviews:</h4>
+                    <h4 className="font-medium mb-2 flex items-center gap-1">
+                      <MessageSquare size={14} />
+                      Recent Review:
+                    </h4>
                     <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                      {cleaner.comments.slice(0, 2).map((comment, index) => (
-                        <p key={index} className="mb-1">"{comment}"</p>
-                      ))}
+                      <div className="flex items-center gap-1 mb-1">
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <Star
+                            key={star}
+                            size={12}
+                            className={star <= cleaner.reviews[0].rating ? 'text-yellow-400 fill-current' : 'text-gray-300'}
+                          />
+                        ))}
+                      </div>
+                      <p className="italic">"{cleaner.reviews[0].review || 'Great service!'}"</p>
                     </div>
                   </div>
                 )}
 
-                <button
-                  onClick={() => onHireCleaner(cleaner._id)}
-                  className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition-colors"
-                >
-                  Hire This Cleaner
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onViewProfile(cleaner._id)}
+                    className="flex-1 bg-gray-500 text-white py-2 rounded hover:bg-gray-600 transition-colors flex items-center justify-center gap-1"
+                  >
+                    <Eye size={16} />
+                    View Profile
+                  </button>
+                  <button
+                    onClick={() => onHireCleaner(cleaner._id)}
+                    className="flex-1 bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition-colors"
+                  >
+                    Hire Now
+                  </button>
+                </div>
               </div>
             ))
           )}
