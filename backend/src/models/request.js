@@ -85,18 +85,41 @@ const requestSchema = new Schema({
   completedAt: {
     type: Date
   },
+  // Client rating of the cleaner (1-5 stars)
   rating: {
     type: Number,
     min: 1,
     max: 5
   },
+  // Client review/comment about the cleaner
   review: {
     type: String,
     maxlength: [500, 'Review cannot exceed 500 characters']
   },
+  // Cleaner rating of the client (1-5 stars) - for future feature
+  cleanerRating: {
+    type: Number,
+    min: 1,
+    max: 5
+  },
+  // Cleaner review/comment about the client - for future feature
+  cleanerReview: {
+    type: String,
+    maxlength: [500, 'Cleaner review cannot exceed 500 characters']
+  },
   totalCost: {
     type: Number,
     min: [0, 'Total cost cannot be negative']
+  },
+  // Flag to track if client has rated this job
+  clientRated: {
+    type: Boolean,
+    default: false
+  },
+  // Flag to track if cleaner has rated this job - for future feature
+  cleanerRated: {
+    type: Boolean,
+    default: false
   }
 }, { 
   timestamps: true 
@@ -107,6 +130,7 @@ requestSchema.index({ client: 1, status: 1 });
 requestSchema.index({ cleaner: 1, status: 1 });
 requestSchema.index({ requestType: 1, status: 1 });
 requestSchema.index({ date: 1 });
+requestSchema.index({ status: 1, date: 1 }); // For auto-completion queries
 
 // Pre-save middleware to validate end time is after start time
 requestSchema.pre('save', function(next) {
@@ -114,6 +138,22 @@ requestSchema.pre('save', function(next) {
     const error = new Error('End time must be after start time');
     return next(error);
   }
+  
+  // Auto-set completedAt if status is being set to completed and completedAt is not set
+  if (this.status === 'completed' && !this.completedAt) {
+    this.completedAt = new Date();
+  }
+  
+  // Set clientRated flag when rating is provided
+  if (this.rating && !this.clientRated) {
+    this.clientRated = true;
+  }
+  
+  // Set cleanerRated flag when cleaner rating is provided - for future feature
+  if (this.cleanerRating && !this.cleanerRated) {
+    this.cleanerRated = true;
+  }
+  
   next();
 });
 
@@ -137,6 +177,31 @@ requestSchema.methods.isPast = function() {
   return requestDateTime < new Date();
 };
 
+// Instance method to check if request should be auto-completed
+requestSchema.methods.shouldAutoComplete = function() {
+  if (this.status !== 'accepted') return false;
+  
+  const now = new Date();
+  const jobDate = new Date(this.date);
+  const [endHour, endMinute] = this.endTime.split(':').map(Number);
+  jobDate.setHours(endHour, endMinute, 0, 0);
+  
+  return now > jobDate;
+};
+
+// Instance method to calculate total cost based on cleaner's hourly rate
+requestSchema.methods.calculateTotalCost = async function() {
+  if (!this.cleaner) return 0;
+  
+  // Populate cleaner if not already populated
+  if (!this.cleaner.hourlyPrice) {
+    await this.populate('cleaner', 'hourlyPrice');
+  }
+  
+  const duration = this.getDuration();
+  return duration * this.cleaner.hourlyPrice;
+};
+
 // Static method to find requests for a specific date
 requestSchema.statics.findByDate = function(date) {
   const startOfDay = new Date(date);
@@ -151,6 +216,37 @@ requestSchema.statics.findByDate = function(date) {
       $lte: endOfDay
     }
   });
+};
+
+// Static method to find past due jobs that should be completed
+requestSchema.statics.findPastDueJobs = function() {
+  const now = new Date();
+  
+  return this.aggregate([
+    {
+      $match: {
+        status: 'accepted'
+      }
+    },
+    {
+      $addFields: {
+        endDateTime: {
+          $dateFromParts: {
+            year: { $year: '$date' },
+            month: { $month: '$date' },
+            day: { $dayOfMonth: '$date' },
+            hour: { $toInt: { $substr: ['$endTime', 0, 2] } },
+            minute: { $toInt: { $substr: ['$endTime', 3, 2] } }
+          }
+        }
+      }
+    },
+    {
+      $match: {
+        endDateTime: { $lt: now }
+      }
+    }
+  ]);
 };
 
 export default mongoose.model('Request', requestSchema);

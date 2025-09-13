@@ -1,13 +1,55 @@
 import Request from "../models/request.js";
 import OfferApplication from "../models/offerApplication.js";
 
+// Helper function to check and auto-complete past due jobs
+const checkAndCompleteJobs = async () => {
+  try {
+    const now = new Date();
+    
+    // Find all accepted jobs that should be completed
+    const acceptedJobs = await Request.find({ 
+      status: 'accepted',
+      date: { $lte: now } // Job date is today or in the past
+    });
+    
+    const jobsToComplete = [];
+    
+    for (let job of acceptedJobs) {
+      const jobDate = new Date(job.date);
+      const [endHour, endMinute] = job.endTime.split(':').map(Number);
+      jobDate.setHours(endHour, endMinute, 0, 0);
+      
+      // If current time is past the job's end time
+      if (now > jobDate) {
+        jobsToComplete.push(job._id);
+      }
+    }
+    
+    if (jobsToComplete.length > 0) {
+      await Request.updateMany(
+        { _id: { $in: jobsToComplete } },
+        { 
+          status: 'completed',
+          completedAt: new Date()
+        }
+      );
+      
+      console.log(`Auto-completed ${jobsToComplete.length} past due jobs`);
+    }
+  } catch (error) {
+    console.error('Error in auto-completing jobs:', error);
+  }
+};
 
 // Get all requests for a specific cleaner
 export async function getRequestsForCleaner(req, res) {
   try {
+    // First, check and complete any past due jobs
+    await checkAndCompleteJobs();
+    
     const { cleanerId } = req.params;
     
-    // Get direct requests to this cleaner
+    // Get direct requests to this cleaner (excluding completed ones)
     const directRequests = await Request.find({ 
       cleaner: cleanerId,
       status: { $in: ['pending', 'accepted'] }
@@ -22,19 +64,23 @@ export async function getRequestsForCleaner(req, res) {
     })
     .populate({
       path: 'offer',
+      match: { status: 'open' }, // Only get offers that are still open
       populate: {
         path: 'client',
         select: 'name email phoneNumber address'
       }
     });
 
+    // Filter out null offers (where the offer is no longer open)
+    const validAppliedOffers = appliedOffers.filter(app => app.offer !== null);
+
     // Transform applied offers to match request structure
-    const transformedOffers = appliedOffers.map(app => ({
+    const transformedOffers = validAppliedOffers.map(app => ({
       ...app.offer.toObject(),
       status: 'pending',
       requestType: 'general',
       applicationId: app._id,
-      isApplied: true // Add flag to identify applied offers
+      isApplied: true
     }));
 
     // Combine and sort all requests
@@ -51,9 +97,36 @@ export async function getRequestsForCleaner(req, res) {
 // Get all general requests (open to all cleaners)
 export async function getGeneralRequests(req, res) {
   try {
+    // First, check and complete any past due jobs
+    await checkAndCompleteJobs();
+    
+    const now = new Date();
+    
     const requests = await Request.find({ 
       requestType: 'general',
-      status: 'open'
+      status: 'open',
+      // Only show requests that haven't passed their deadline or job time
+      $or: [
+        { deadline: { $gte: now } }, // Deadline hasn't passed
+        { deadline: null }, // No deadline set
+        { 
+          // Job hasn't started yet
+          $expr: {
+            $gt: [
+              {
+                $dateFromParts: {
+                  year: { $year: '$date' },
+                  month: { $month: '$date' },
+                  day: { $dayOfMonth: '$date' },
+                  hour: { $toInt: { $substr: ['$startTime', 0, 2] } },
+                  minute: { $toInt: { $substr: ['$startTime', 3, 2] } }
+                }
+              },
+              now
+            ]
+          }
+        }
+      ]
     })
     .populate('client', 'name email phoneNumber address')
     .sort({ createdAt: -1 });
@@ -68,9 +141,12 @@ export async function getGeneralRequests(req, res) {
 // Update request status (accept/decline)
 export async function updateRequestStatus(req, res) {
   try {
+    // First, check and complete any past due jobs
+    await checkAndCompleteJobs();
+    
     const { requestId } = req.params;
     const { status } = req.body;
-    const cleanerId = req.user.id; // From auth middleware
+    const cleanerId = req.user.id;
 
     // Validate status
     if (!['accepted', 'declined', 'cancelled', 'completed'].includes(status)) {
@@ -87,9 +163,16 @@ export async function updateRequestStatus(req, res) {
       return res.status(403).json({ message: 'Not authorized to update this request' });
     }
 
+    // Don't allow status changes for already completed requests
+    if (request.status === 'completed') {
+      return res.status(400).json({ message: 'Cannot modify completed requests' });
+    }
+
     request.status = status;
     if (status === 'accepted') {
       request.acceptedAt = new Date();
+    } else if (status === 'completed') {
+      request.completedAt = new Date();
     }
 
     await request.save();
@@ -108,7 +191,7 @@ export async function updateRequestStatus(req, res) {
 export async function applyToOffer(req, res) {
   try {
     const { requestId } = req.params;
-    const cleanerId = req.user.id; // From auth middleware
+    const cleanerId = req.user.id;
 
     const request = await Request.findById(requestId);
     if (!request) {
@@ -120,9 +203,20 @@ export async function applyToOffer(req, res) {
       return res.status(400).json({ message: 'Offer is no longer available' });
     }
 
+    const now = new Date();
+    
     // Check if deadline has passed
-    if (request.deadline && new Date() > new Date(request.deadline)) {
+    if (request.deadline && new Date(request.deadline) < now) {
       return res.status(400).json({ message: 'Offer deadline has passed' });
+    }
+
+    // Check if the job time has already passed
+    const jobDate = new Date(request.date);
+    const [startHour, startMinute] = request.startTime.split(':').map(Number);
+    jobDate.setHours(startHour, startMinute, 0, 0);
+    
+    if (now > jobDate) {
+      return res.status(400).json({ message: 'Job time has already passed' });
     }
 
     // Check if cleaner has already applied
@@ -159,14 +253,17 @@ export async function applyToOffer(req, res) {
 // Get completed jobs for a cleaner
 export async function getCompletedJobs(req, res) {
   try {
+    // First, check and complete any past due jobs
+    await checkAndCompleteJobs();
+    
     const { cleanerId } = req.params;
     
     const jobs = await Request.find({ 
       cleaner: cleanerId,
       status: 'completed'
     })
-    .populate('client', 'name email phoneNumber')
-    .sort({ updatedAt: -1 });
+    .populate('client', 'name email phoneNumber address')
+    .sort({ completedAt: -1, updatedAt: -1 });
 
     res.json(jobs);
   } catch (err) {
@@ -178,14 +275,17 @@ export async function getCompletedJobs(req, res) {
 // Get completed jobs for a client
 export async function getCompletedJobsForClient(req, res) {
   try {
+    // First, check and complete any past due jobs
+    await checkAndCompleteJobs();
+    
     const { clientId } = req.params;
     
     const jobs = await Request.find({
       client: clientId,
       status: 'completed'
     })
-    .populate('cleaner', 'name email hourlyPrice')
-    .sort({ updatedAt: -1 });
+    .populate('cleaner', 'name email hourlyPrice service stars')
+    .sort({ completedAt: -1, updatedAt: -1 });
 
     res.json(jobs);
   } catch (err) {
@@ -205,11 +305,12 @@ export async function rateRequest(req, res) {
       return res.status(400).json({ message: 'Rating must be between 1 and 5' });
     }
 
-    const request = await Request.findById(requestId).populate('client', 'id');
+    const request = await Request.findById(requestId);
     if (!request) {
       return res.status(404).json({ message: 'Request not found' });
     }
 
+    // Compare the client ObjectId directly with the user id
     if (request.client.toString() !== clientId) {
       return res.status(403).json({ message: 'Not authorized to rate this request' });
     }
@@ -219,14 +320,15 @@ export async function rateRequest(req, res) {
     }
 
     request.rating = rating;
-    if (typeof review === 'string') {
+    if (review && typeof review === 'string') {
       request.review = review;
     }
+    request.clientRated = true;
     await request.save();
 
     const populated = await Request.findById(requestId)
       .populate('client', 'name email phoneNumber address')
-      .populate('cleaner', 'name email');
+      .populate('cleaner', 'name email hourlyPrice service stars');
 
     res.json(populated);
   } catch (err) {
@@ -245,16 +347,26 @@ export async function createRequest(req, res) {
       startTime,
       endTime,
       note,
-      requestType = 'specific', // 'specific' or 'general'
+      requestType = 'specific',
       budget,
       deadline
     } = req.body;
 
-    const clientId = req.user.id; // From auth middleware
+    const clientId = req.user.id;
 
     // Validation
     if (!service || !date || !startTime || !endTime) {
       return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    // Validate that the request is for a future time
+    const now = new Date();
+    const requestDate = new Date(date);
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    requestDate.setHours(startHour, startMinute, 0, 0);
+    
+    if (requestDate <= now) {
+      return res.status(400).json({ message: 'Cannot create requests for past times' });
     }
 
     // For specific requests, cleanerId is required
@@ -303,6 +415,9 @@ export async function createRequest(req, res) {
 // Get pending offers for a client (offers with applications)
 export async function getPendingOffers(req, res) {
   try {
+    // First, check and complete any past due jobs
+    await checkAndCompleteJobs();
+    
     const clientId = req.user.id;
 
     const offers = await Request.find({
@@ -390,17 +505,5 @@ export async function selectCleanerForOffer(req, res) {
   }
 }
 
-const checkAndCompleteJobs = async () => {
-  const now = new Date();
-  const acceptedJobs = await Request.find({ status: 'accepted' });
-  
-  for (let job of acceptedJobs) {
-    const jobDate = new Date(job.date);
-    const [endHour, endMinute] = job.endTime.split(':').map(Number);
-    jobDate.setHours(endHour, endMinute);
-    
-    if (now > jobDate) {
-      await Request.findByIdAndUpdate(job._id, { status: 'completed' });
-    }
-  }
-};
+// Export the auto-completion function for use in other parts of the app
+export { checkAndCompleteJobs };
