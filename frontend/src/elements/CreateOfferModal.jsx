@@ -9,6 +9,7 @@ const CreateOfferModal = ({ onClose, onSuccess }) => {
     endTime: '',
     budget: '',
     deadline: '',
+    deadlineTime: '23:59',
     note: ''
   });
   const [loading, setLoading] = useState(false);
