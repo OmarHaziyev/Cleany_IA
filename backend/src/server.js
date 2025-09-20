@@ -4,7 +4,6 @@ import dotenv from "dotenv";
 import {connectDB} from "./config/db.js"; 
 import router from "./routes/cleanerRoutes.js";
 import clientRouter from "./routes/clientRoutes.js";
-import { protect } from './middleware/auth.js';
 import requestRouter from "./routes/requestRoutes.js";
 import jobScheduler from "./config/jobScheduler.js";
 

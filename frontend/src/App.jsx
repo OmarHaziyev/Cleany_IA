@@ -72,6 +72,16 @@ export const api = {
   selectCleanerForOffer: (requestId, applicationId) => api.request(`/offers/${requestId}/select/${applicationId}`, { method: 'POST' }),
   rateRequest: (requestId, rating, review) => api.request(`/requests/${requestId}/rate`, { method: 'PUT', body: { rating, review } }),
   getCompletedJobsForClient: (clientId) => api.request(`/jobs/client/${clientId}/completed`),
+
+  // Auth endpoints
+  loginClient: (credentials) => api.request('/clients/login', { method: 'POST', body: credentials }),
+  loginCleaner: (credentials) => api.request('/cleaners/login', { method: 'POST', body: credentials }),
+  registerClient: (data) => api.request('/clients', { method: 'POST', body: data }),
+  registerCleaner: (data) => api.request('/cleaners', { method: 'POST', body: data }),
+
+  // Profile endpoints
+  getMyProfile: (userType) => api.request(`/profile/${userType}`),
+  updateMyProfile: (userType, data) => api.request(`/profile/${userType}`, { method: 'PUT', body: data }),
 };
 
 // Simple Toast Component

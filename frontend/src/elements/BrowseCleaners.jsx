@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Star, DollarSign, Clock, Eye, MessageSquare } from 'lucide-react';
 import { api, Loading } from '../App';
+import CleanerFilter from './CleanerFilter';
 
 const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
   const [cleaners, setCleaners] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isFiltered, setIsFiltered] = useState(false);
 
   useEffect(() => {
     fetchCleaners();
@@ -17,11 +19,31 @@ const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
       const data = await api.getAllCleaners();
       setCleaners(data);
       setError('');
+      setIsFiltered(false);
     } catch (err) {
       console.error('Error fetching cleaners:', err);
       setError(err.message);
     }
     setLoading(false);
+  };
+
+  const handleFilter = async (filters) => {
+    setLoading(true);
+    try {
+      const data = await api.filterCleaners(filters);
+      setCleaners(data);
+      setError('');
+      setIsFiltered(true);
+    } catch (err) {
+      console.error('Error filtering cleaners:', err);
+      setError(err.message);
+      setCleaners([]);
+    }
+    setLoading(false);
+  };
+
+  const handleClearFilter = () => {
+    fetchCleaners();
   };
 
   const getAvailableDays = (schedule) => {
@@ -49,7 +71,21 @@ const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
 
   return (
     <div>
-      <h2 className="text-2xl font-semibold mb-6">Browse Cleaners</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-semibold">Browse Cleaners</h2>
+        {isFiltered && (
+          <div className="text-sm text-gray-600 bg-blue-50 px-3 py-1 rounded">
+            Showing {cleaners.length} filtered result{cleaners.length !== 1 ? 's' : ''}
+          </div>
+        )}
+      </div>
+
+      {/* Filter Component */}
+      <CleanerFilter 
+        onFilter={handleFilter}
+        onClear={handleClearFilter}
+        isLoading={loading}
+      />
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -63,7 +99,14 @@ const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {cleaners.length === 0 ? (
             <div className="col-span-full text-center text-gray-500 py-8">
-              No cleaners available
+              {isFiltered ? (
+                <div>
+                  <p className="text-lg mb-2">No cleaners match your filters</p>
+                  <p className="text-sm">Try adjusting your search criteria or clearing filters</p>
+                </div>
+              ) : (
+                <p>No cleaners available</p>
+              )}
             </div>
           ) : (
             cleaners.map(cleaner => (

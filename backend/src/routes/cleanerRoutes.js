@@ -6,9 +6,11 @@ import {
   updateCleaner,
   deleteCleaner,
   filterCleaners,
-  loginCleaner
+  loginCleaner,
+  getMyProfile,
+  updateMyProfile
 } from '../controllers/cleanerController.js';
-import { protect } from '../middleware/auth.js';
+import { protect, roleProtect } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -22,5 +24,9 @@ router.get('/cleaners/:id', getCleanerByID);
 // Protected routes (authentication required)
 router.put('/cleaners/:id', protect, updateCleaner);
 router.delete('/cleaners/:id', protect, deleteCleaner);
+
+// Profile routes (for authenticated cleaner)
+router.get('/profile/cleaner', protect, roleProtect('cleaner'), getMyProfile);
+router.put('/profile/cleaner', protect, roleProtect('cleaner'), updateMyProfile);
 
 export default router;

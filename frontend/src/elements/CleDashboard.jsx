@@ -3,10 +3,12 @@ import CleHeader from './CleHeader';
 import CleOfferPage from './CleOfferPage';
 import CleReqPage from './CleReqPage';
 import ClePastJobsPage from './ClePastJobsPage';
+import ProfilePage from './ProfilePage';
 import { Toast } from '../App';
 
 const CleDashboard = () => {
   const [activeTab, setActiveTab] = useState('requests');
+  const [showProfile, setShowProfile] = useState(false);
   const [error, setError] = useState('');
 
   const handleError = (errorMessage) => {
@@ -15,7 +17,7 @@ const CleDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <CleHeader />
+      <CleHeader onShowProfile={() => setShowProfile(true)} />
 
       <div className="p-4">
         <div className="flex gap-2 mb-4">
@@ -47,6 +49,11 @@ const CleDashboard = () => {
           {activeTab === 'pastjobs' && <ClePastJobsPage onError={handleError} />}
         </div>
       </div>
+
+      {/* Profile Modal */}
+      {showProfile && (
+        <ProfilePage onClose={() => setShowProfile(false)} />
+      )}
     </div>
   );
 };

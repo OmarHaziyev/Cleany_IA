@@ -118,4 +118,57 @@ const token = jwt.sign(
     console.error('Error in loginClient controller', err);
     res.status(500).json({ message: 'Server error' });
   }
-}
+};
+
+// Get current client's profile (for authenticated client)
+export async function getMyProfile(req, res) {
+  try {
+    const clientId = req.user.id;
+    const client = await Client.findById(clientId).select('-password');
+    
+    if (!client) {
+      return res.status(404).json({ message: 'Client not found' });
+    }
+    
+    res.json(client);
+  } catch (err) {
+    console.error('Error in getMyProfile controller', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Update current client's profile (for authenticated client)
+export async function updateMyProfile(req, res) {
+  try {
+    const clientId = req.user.id;
+    const { name } = req.body;
+    
+    // Validation
+    const updates = {};
+    if (name) {
+      if (name.length < 2 || name.length > 50) {
+        return res.status(400).json({ message: 'Name must be between 2 and 50 characters' });
+      }
+      updates.name = name.trim();
+    }
+    
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: 'No valid fields to update' });
+    }
+    
+    const updatedClient = await Client.findByIdAndUpdate(
+      clientId, 
+      updates, 
+      { new: true, runValidators: true }
+    ).select('-password');
+    
+    if (!updatedClient) {
+      return res.status(404).json({ message: 'Client not found' });
+    }
+    
+    res.json(updatedClient);
+  } catch (err) {
+    console.error('Error in updateMyProfile controller', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};

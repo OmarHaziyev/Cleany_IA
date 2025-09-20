@@ -74,84 +74,118 @@ export async function getAllCleanersForDashboard(_, res){ // tested
 
 export async function filterCleaners(req, res) { // tested
   try {
-    const filter = {};
-
     const {
-      stars,
       price,
+      rating,
       age,
       gender,
       service
     } = req.body;
 
-    if (stars) {
-      const [minStars, maxStars] = stars.split('-');
-      filter.stars = { $gte: Number(minStars), $lte: Number(maxStars) };
-    }
+    // Build the initial match pipeline
+    const matchStage = {};
+    const pipeline = [];
 
+    // Basic field filters
     if (price) {
       const [minPrice, maxPrice] = price.split('-');
-      filter.hourlyPrice = { $gte: Number(minPrice), $lte: Number(maxPrice) }; // Changed from 'price' to 'hourlyPrice'
+      matchStage.hourlyPrice = { $gte: Number(minPrice), $lte: Number(maxPrice) };
     }
 
     if (age) {
       const [minAge, maxAge] = age.split('-');
-      filter.age = { $gte: Number(minAge), $lte: Number(maxAge) };
+      matchStage.age = { $gte: Number(minAge), $lte: Number(maxAge) };
     }
 
     if (gender) {
-      filter.gender = gender;
+      matchStage.gender = gender;
     }
 
     if (service) {
-      filter.service = service;
+      matchStage.service = service;
     }
 
-    const cleaners = await Cleaner.find(filter);
+    // Add initial match stage if there are basic filters
+    if (Object.keys(matchStage).length > 0) {
+      pipeline.push({ $match: matchStage });
+    }
+
+    // Add lookup for ratings
+    pipeline.push({
+      $lookup: {
+        from: 'requests',
+        localField: '_id',
+        foreignField: 'cleaner',
+        as: 'completedJobs',
+        pipeline: [
+          {
+            $match: {
+              status: 'completed',
+              rating: { $exists: true, $ne: null }
+            }
+          },
+          {
+            $project: {
+              rating: 1,
+              review: 1
+            }
+          }
+        ]
+      }
+    });
+
+    // Add fields for rating calculation
+    pipeline.push({
+      $addFields: {
+        averageRating: {
+          $cond: {
+            if: { $gt: [{ $size: '$completedJobs' }, 0] },
+            then: { $avg: '$completedJobs.rating' },
+            else: 0
+          }
+        },
+        totalReviews: { $size: '$completedJobs' },
+        reviews: {
+          $map: {
+            input: { $slice: ['$completedJobs', 5] },
+            as: 'job',
+            in: {
+              rating: '$job.rating',
+              review: '$job.review'
+            }
+          }
+        }
+      }
+    });
+
+    // Add rating filter after calculating average rating
+    if (rating) {
+      const [minRating, maxRating] = rating.split('-');
+      pipeline.push({
+        $match: {
+          averageRating: { $gte: Number(minRating), $lte: Number(maxRating) }
+        }
+      });
+    }
+
+    // Clean up the output
+    pipeline.push({
+      $project: {
+        completedJobs: 0
+      }
+    });
+
+    // Add random sampling
+    pipeline.push({ $sample: { size: 20 } });
+
+    // Execute the aggregation pipeline
+    const cleaners = await Cleaner.aggregate(pipeline);
 
     if (!cleaners.length) {
       return res.status(404).json({ message: 'No cleaners found matching your filters.' });
     }
 
-    const randomCleaners = await Cleaner.aggregate([
-      { $match: { _id: { $in: cleaners.map(c => c._id) } } },
-      { $sample: { size: 20 } }, // 20 random cleaners per page 
-      {
-        $lookup: {
-          from: 'requests',
-          localField: '_id',
-          foreignField: 'cleaner',
-          as: 'completedJobs',
-          pipeline: [
-            {
-              $match: {
-                status: 'completed',
-                rating: { $exists: true, $ne: null }
-              }
-            }
-          ]
-        }
-      },
-      {
-        $addFields: {
-          averageRating: {
-            $cond: {
-              if: { $gt: [{ $size: '$completedJobs' }, 0] },
-              then: { $avg: '$completedJobs.rating' },
-              else: 0
-            }
-          },
-          totalReviews: { $size: '$completedJobs' }
-        }
-      },
-      {
-        $project: {
-          completedJobs: 0
-        }
-      }
-    ]);
-
-    res.json(randomCleaners);
+    res.json(cleaners);
   } catch (err) {
     console.error("Error in filterCleaners controller", err);
     res.status(500).json({ message: 'Server error' });
@@ -444,4 +478,37 @@ export async function loginCleaner(req, res) {
   }
 }
 
-//all controllers are tested and working
+// Get current cleaner's profile (for authenticated cleaner)
+export async function getMyProfile(req, res) {
+  try {
+    const cleanerId = req.user.id;
+    const cleaner = await Cleaner.findById(cleanerId).select('-password');
+    
+    if (!cleaner) {
+      return res.status(404).json({ message: 'Cleaner not found' });
+    }
+    
+    res.json(cleaner);
+  } catch (err) {
+    console.error('Error in getMyProfile controller', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Delete current cleaner's account (for authenticated cleaner)
+export async function deleteMyAccount(req, res) {
+  try {
+    const cleanerId = req.user.id;
+    
+    const deletedCleaner = await Cleaner.findByIdAndDelete(cleanerId);
+    
+    if (!deletedCleaner) {
+      return res.status(404).json({ message: 'Cleaner account not found' });
+    }
+    
+    res.json({ message: 'Account deleted successfully' });
+  } catch (err) {
+    console.error('Error in deleteMyAccount controller', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};

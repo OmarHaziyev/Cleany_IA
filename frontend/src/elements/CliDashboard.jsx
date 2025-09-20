@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
 import CliHeader from './CliHeader';
 import CliOfferPage from './CliOfferPage';
 import BrowseCleaners from './BrowseCleaners';
 import CleanerProfile from './CleanerProfile';
+import ProfilePage from './ProfilePage';
 import CreateRequestModal from './CreateRequestModal';
 import CreateOfferModal from './CreateOfferModal';
 import { api, Toast } from '../App';
@@ -13,6 +14,7 @@ const CliDashboard = () => {
   const [activeTab, setActiveTab] = useState('browse');
   const [showCreateRequest, setShowCreateRequest] = useState(false);
   const [showCreateOffer, setShowCreateOffer] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [selectedCleanerId, setSelectedCleanerId] = useState(null);
   const [error, setError] = useState('');
 
@@ -32,7 +34,7 @@ const CliDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <CliHeader />
+      <CliHeader onShowProfile={() => setShowProfile(true)} />
 
       <div className="p-4">
         {activeTab !== 'profile' && (
@@ -90,6 +92,11 @@ const CliDashboard = () => {
           {activeTab === 'pastjobs' && <CliPastJobsPage />}
         </div>
       </div>
+
+      {/* Profile Modal */}
+      {showProfile && (
+        <ProfilePage onClose={() => setShowProfile(false)} />
+      )}
 
       {/* Create Request Modal */}
       {showCreateRequest && (
