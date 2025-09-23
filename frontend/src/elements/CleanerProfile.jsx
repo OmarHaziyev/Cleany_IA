@@ -62,15 +62,22 @@ const CleanerProfile = ({ cleanerId, onBack, onHire }) => {
     })).filter(dayInfo => dayInfo.available);
   };
 
-  const getRatingDistribution = (reviews) => {
-    if (!reviews || reviews.length === 0) return {};
-    
+  const getRatingDistribution = (reviews, initialStars) => {
     const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-    reviews.forEach(review => {
-      if (review.rating) {
-        distribution[review.rating]++;
-      }
-    });
+    
+    // Add initial rating if it exists
+    if (initialStars) {
+      distribution[Math.round(initialStars)]++;
+    }
+    
+    // Add ratings from reviews
+    if (reviews) {
+      reviews.forEach(review => {
+        if (review.rating) {
+          distribution[Math.round(review.rating)]++;
+        }
+      });
+    }
     
     return distribution;
   };
@@ -112,7 +119,7 @@ const CleanerProfile = ({ cleanerId, onBack, onHire }) => {
   }
 
   const schedule = formatSchedule(cleaner.schedule);
-  const ratingDistribution = getRatingDistribution(cleaner.reviews);
+  const ratingDistribution = getRatingDistribution(cleaner.reviews, cleaner.stars);
   const reviewsToShow = showAllReviews ? cleaner.reviews : cleaner.reviews.slice(0, 3);
 
   return (
@@ -286,10 +293,35 @@ const CleanerProfile = ({ cleanerId, onBack, onHire }) => {
               </h3>
             </div>
 
-            {cleaner.reviews && cleaner.reviews.length > 0 ? (
+            {(cleaner.reviews?.length > 0 || cleaner.comments?.length > 0) ? (
               <div className="space-y-4">
-                {reviewsToShow.map((review, index) => (
-                  <div key={index} className="border-b border-gray-100 pb-4 last:border-b-0">
+                {/* Show initial comments */}
+                {cleaner.comments?.map((comment, index) => (
+                  <div key={`initial-${index}`} className="border-b border-gray-100 pb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex">
+                          {[1, 2, 3, 4, 5].map(star => (
+                            <Star
+                              key={star}
+                              size={16}
+                              className={star <= cleaner.stars ? 'text-yellow-400 fill-current' : 'text-gray-300'}
+                            />
+                          ))}
+                        </div>
+                        <span className="font-medium">{cleaner.stars}/5</span>
+                        <span className="text-xs text-blue-500">(Initial Rating)</span>
+                      </div>
+                    </div>
+                    <p className="text-gray-700 italic bg-gray-50 p-3 rounded">
+                      "{comment}"
+                    </p>
+                  </div>
+                ))}
+
+                {/* Show reviews from jobs */}
+                {reviewsToShow?.map((review, index) => (
+                  <div key={`review-${index}`} className="border-b border-gray-100 pb-4 last:border-b-0">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <div className="flex">
@@ -306,7 +338,7 @@ const CleanerProfile = ({ cleanerId, onBack, onHire }) => {
                       <div className="text-right">
                         <p className="text-sm text-gray-600">{review.clientName || 'Anonymous'}</p>
                         <p className="text-xs text-gray-500">
-                          {new Date(review.date).toLocaleDateString()} • {review.service}
+                          {review.date ? new Date(review.date).toLocaleDateString() : 'N/A'} • {review.service || 'Cleaning Service'}
                         </p>
                       </div>
                     </div>

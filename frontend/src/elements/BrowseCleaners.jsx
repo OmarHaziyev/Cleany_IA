@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Star, DollarSign, Clock, Eye, MessageSquare } from 'lucide-react';
+import { Star, DollarSign, Clock, Eye, MessageSquare, ArrowDownWideNarrow, ArrowUpWideNarrow } from 'lucide-react';
 import { api, Loading } from '../App';
 import CleanerFilter from './CleanerFilter';
 
@@ -8,24 +8,43 @@ const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isFiltered, setIsFiltered] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [sortBy, setSortBy] = useState('rating');
+  const ITEMS_PER_PAGE = 9;
 
   useEffect(() => {
-    fetchCleaners();
-  }, []);
+    fetchCleaners(1, sortBy);
+  }, [sortBy]);
 
-  const fetchCleaners = async () => {
+  const fetchCleaners = async (page = 1) => {
     setLoading(true);
     try {
-      const data = await api.getAllCleaners();
-      setCleaners(data);
+      const response = await api.getAllCleaners(page, sortBy);
+      setCleaners(response.cleaners);
+      setTotalPages(Math.ceil(response.pagination.totalCount / ITEMS_PER_PAGE));
       setError('');
       setIsFiltered(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       console.error('Error fetching cleaners:', err);
       setError(err.message);
     }
     setLoading(false);
   };
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    fetchCleaners(page);
+  };
+
+  const handleSortChange = (newSortBy) => {
+    setSortBy(newSortBy);
+    setCurrentPage(1);
+    fetchCleaners(1, newSortBy);
+  };
+
+  // This is a duplicate fetchCleaners function that can be removed since we have the paginated version above
 
   const handleFilter = async (filters) => {
     setLoading(true);
@@ -34,16 +53,20 @@ const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
       setCleaners(data);
       setError('');
       setIsFiltered(true);
+      setCurrentPage(1);
+      setTotalPages(1); // Filtered results don't use pagination currently
     } catch (err) {
       console.error('Error filtering cleaners:', err);
       setError(err.message);
       setCleaners([]);
+      setTotalPages(1);
     }
     setLoading(false);
   };
 
   const handleClearFilter = () => {
-    fetchCleaners();
+    setCurrentPage(1);
+    fetchCleaners(1, sortBy);
   };
 
   const getAvailableDays = (schedule) => {
@@ -71,21 +94,42 @@ const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-semibold">Browse Cleaners</h2>
-        {isFiltered && (
-          <div className="text-sm text-gray-600 bg-blue-50 px-3 py-1 rounded">
-            Showing {cleaners.length} filtered result{cleaners.length !== 1 ? 's' : ''}
-          </div>
-        )}
-      </div>
+      <div className="flex flex-col gap-4 mb-4">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-semibold">Browse Cleaners</h2>
+          {isFiltered && (
+            <div className="text-sm text-gray-600 bg-blue-50 px-3 py-1 rounded">
+              Showing {cleaners.length} filtered result{cleaners.length !== 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
 
-      {/* Filter Component */}
-      <CleanerFilter 
-        onFilter={handleFilter}
-        onClear={handleClearFilter}
-        isLoading={loading}
-      />
+        <div className="flex justify-between items-center gap-4">
+          {/* Filter Component */}
+          <div className="flex-grow">
+            <CleanerFilter 
+              onFilter={handleFilter}
+              onClear={handleClearFilter}
+              isLoading={loading}
+            />
+          </div>
+
+          {/* Sort Options */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Sort by:</label>
+            <select
+              value={sortBy}
+              onChange={(e) => handleSortChange(e.target.value)}
+              className="border rounded-md px-3 py-1.5 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading}
+            >
+              <option value="rating">Highest Rating</option>
+              <option value="price_high">Price: High to Low</option>
+              <option value="price_low">Price: Low to High</option>
+            </select>
+          </div>
+        </div>
+      </div>
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -110,7 +154,7 @@ const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
             </div>
           ) : (
             cleaners.map(cleaner => (
-              <div key={cleaner._id} className="bg-white p-6 rounded-lg border shadow-sm hover:shadow-md transition-shadow">
+              <div key={cleaner._id} className="bg-white p-6 rounded-lg border shadow-sm hover:shadow-md transition-shadow cleaner-card">
                 <div className="mb-4">
                   <h3 className="text-lg font-semibold">{cleaner.name}</h3>
                   <p className="text-gray-600">{cleaner.gender}, {cleaner.age} years old</p>
@@ -130,6 +174,12 @@ const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
                           <span className="font-medium">{cleaner.averageRating.toFixed(1)}</span>
                           <span className="text-yellow-400">★</span>
                           <span className="text-gray-500 text-sm">({cleaner.totalReviews} reviews)</span>
+                        </>
+                      ) : cleaner.stars ? (
+                        <>
+                          <span className="font-medium">{cleaner.stars.toFixed(1)}</span>
+                          <span className="text-yellow-400">★</span>
+                          <span className="text-gray-500 text-sm">(Initial rating)</span>
                         </>
                       ) : (
                         <span className="text-gray-500">No reviews yet</span>
@@ -163,23 +213,45 @@ const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
                 </div>
 
                 {/* Show sample reviews if available */}
-                {cleaner.reviews && cleaner.reviews.length > 0 && (
+                {((cleaner.reviews && cleaner.reviews.length > 0) || (cleaner.comments && cleaner.comments.length > 0)) && (
                   <div className="mb-4">
                     <h4 className="font-medium mb-2 flex items-center gap-1">
                       <MessageSquare size={14} />
-                      Recent Review:
+                      Recent Reviews:
                     </h4>
-                    <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                      <div className="flex items-center gap-1 mb-1">
-                        {[1, 2, 3, 4, 5].map(star => (
-                          <Star
-                            key={star}
-                            size={12}
-                            className={star <= cleaner.reviews[0].rating ? 'text-yellow-400 fill-current' : 'text-gray-300'}
-                          />
-                        ))}
-                      </div>
-                      <p className="italic">"{cleaner.reviews[0].review || 'Great service!'}"</p>
+                    <div className="space-y-2">
+                      {cleaner.reviews?.slice(0, 2).map((review, idx) => (
+                        <div key={idx} className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                          <div className="flex items-center gap-1 mb-1">
+                            {[1, 2, 3, 4, 5].map(star => (
+                              <Star
+                                key={star}
+                                size={12}
+                                className={star <= (review.rating || cleaner.stars) ? 'text-yellow-400 fill-current' : 'text-gray-300'}
+                              />
+                            ))}
+                            {review.source === 'direct' && (
+                              <span className="text-xs text-gray-400 ml-1">(Initial review)</span>
+                            )}
+                          </div>
+                          <p className="italic">"{review.review}"</p>
+                        </div>
+                      ))}
+                      {!cleaner.reviews?.length && cleaner.comments?.slice(0, 2).map((comment, idx) => (
+                        <div key={idx} className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                          <div className="flex items-center gap-1 mb-1">
+                            {[1, 2, 3, 4, 5].map(star => (
+                              <Star
+                                key={star}
+                                size={12}
+                                className={star <= cleaner.stars ? 'text-yellow-400 fill-current' : 'text-gray-300'}
+                              />
+                            ))}
+                            <span className="text-xs text-gray-400 ml-1">(Initial review)</span>
+                          </div>
+                          <p className="italic">"{comment}"</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -202,6 +274,77 @@ const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {!isFiltered && totalPages > 1 && (
+        <div className="flex justify-center mt-8 mb-4 gap-2">
+          {/* Previous Page */}
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1 || loading}
+            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 transition-colors"
+          >
+            Previous
+          </button>
+
+          {/* Page Numbers */}
+          <div className="flex gap-2">
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => {
+                // Show first page, last page, current page, and pages around current page
+                return (
+                  page === 1 ||
+                  page === totalPages ||
+                  Math.abs(currentPage - page) <= 2
+                );
+              })
+              .map((page, index, array) => {
+                // If there's a gap, show ellipsis
+                if (index > 0 && page - array[index - 1] > 1) {
+                  return (
+                    <React.Fragment key={`gap-${page}`}>
+                      <span className="px-4 py-2">...</span>
+                      <button
+                        onClick={() => handlePageChange(page)}
+                        disabled={loading}
+                        className={`px-4 py-2 rounded-lg transition-colors ${
+                          currentPage === page
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  );
+                }
+                return (
+                  <button
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    disabled={loading}
+                    className={`px-4 py-2 rounded-lg transition-colors ${
+                      currentPage === page
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+          </div>
+
+          {/* Next Page */}
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages || loading}
+            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 transition-colors"
+          >
+            Next
+          </button>
         </div>
       )}
     </div>

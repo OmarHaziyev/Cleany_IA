@@ -151,17 +151,10 @@ const CleReqPage = () => {
                       {new Date(request.date).toLocaleDateString()} from {request.startTime} to {request.endTime}
                     </p>
                     
-                    {/* Show note only if request is accepted or if it's an applied offer */}
-                    {(request.status === 'accepted' || getRequestStatus(request) === 'applied') && request.note && (
+                    {/* Always show the note if it exists */}
+                    {request.note && (
                       <p className="text-sm mt-2 bg-blue-50 p-2 rounded">
                         <strong>Note:</strong> {request.note}
-                      </p>
-                    )}
-                    
-                    {/* Show that note exists but is hidden for pending specific requests */}
-                    {request.status === 'pending' && request.requestType === 'specific' && request.note && (
-                      <p className="text-sm mt-2 text-gray-500 italic">
-                        📝 Note available after accepting
                       </p>
                     )}
                   </div>

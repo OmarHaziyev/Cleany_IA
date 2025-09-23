@@ -3,8 +3,6 @@ import {
   createCleaner,
   getAllCleanersForDashboard,
   getCleanerByID,
-  updateCleaner,
-  deleteCleaner,
   filterCleaners,
   loginCleaner,
   getMyProfile,
@@ -18,12 +16,8 @@ const router = express.Router();
 router.post('/cleaners', createCleaner);
 router.post('/cleaners/login', loginCleaner);
 router.get('/cleaners', getAllCleanersForDashboard);
-router.post('/cleaners/filter', filterCleaners); // Fixed: should be POST for filter with body
+router.post('/cleaners/filter', filterCleaners);
 router.get('/cleaners/:id', getCleanerByID);
-
-// Protected routes (authentication required)
-router.put('/cleaners/:id', protect, updateCleaner);
-router.delete('/cleaners/:id', protect, deleteCleaner);
 
 // Profile routes (for authenticated cleaner)
 router.get('/profile/cleaner', protect, roleProtect('cleaner'), getMyProfile);

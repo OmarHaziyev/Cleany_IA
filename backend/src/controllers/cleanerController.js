@@ -3,11 +3,146 @@ import bcrypt from 'bcryptjs';
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 
-export async function getAllCleanersForDashboard(_, res){ // tested
+// Helper function to get standard cleaner pipeline stages
+const getCleanerPipelineStages = () => [
+  {
+    $lookup: {
+      from: 'requests',
+      localField: '_id',
+      foreignField: 'cleaner',
+      as: 'completedJobs',
+      pipeline: [
+        {
+          $match: {
+            status: 'completed',
+            rating: { $exists: true, $ne: null }
+          }
+        },
+        {
+          $project: {
+            rating: 1,
+            review: 1
+          }
+        }
+      ]
+    }
+  },
+  {
+    $addFields: {
+      // Combine job ratings with initial stars
+      averageRating: {
+        $cond: {
+          if: { $gt: [{ $size: '$completedJobs' }, 0] },
+          then: { $avg: '$completedJobs.rating' },
+          else: '$stars'
+        }
+      },
+      // Combine job reviews with initial comments
+      allReviews: {
+        $concatArrays: [
+          {
+            $map: {
+              input: '$completedJobs',
+              as: 'job',
+              in: {
+                rating: '$$job.rating',
+                review: '$$job.review',
+                source: 'job'
+              }
+            }
+          },
+          {
+            $map: {
+              input: { $ifNull: ['$comments', []] },
+              as: 'comment',
+              in: {
+                rating: '$stars',
+                review: '$$comment',
+                source: 'initial'
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    $addFields: {
+      totalReviews: { 
+        $add: [
+          { $size: '$completedJobs' },
+          { $size: { $ifNull: ['$comments', []] } }
+        ]
+      }
+    }
+  },
+  {
+    $project: {
+      completedJobs: 0,
+      password: 0
+    }
+  }
+];
+
+export async function getAllCleanersForDashboard(req, res){ // tested
    try {
-    // Fetch a random set of cleaners with their ratings
+    const page = parseInt(req.query.page) || 1; // Page number (1-based)
+    const CLEANERS_PER_PAGE = 9; // Show 9 cleaners per page (3x3 grid)
+    const sortBy = req.query.sort || 'rating'; // Default sort by rating
+    
+    // First, get the total count of cleaners
+    const totalCount = await Cleaner.countDocuments();
+
+    // Determine sort order
+    let sortStage = {};
+    switch(sortBy) {
+      case 'rating':
+        sortStage = { $sort: { averageRating: -1 } };
+        break;
+      case 'price_high':
+        sortStage = { $sort: { hourlyPrice: -1 } };
+        break;
+      case 'price_low':
+        sortStage = { $sort: { hourlyPrice: 1 } };
+        break;
+    }
+    
     const cleaners = await Cleaner.aggregate([
-      { $sample: { size: 20 } },  // Get 20 random cleaners
+      // First add the lookup and fields we need for sorting
+      {
+        $lookup: {
+          from: 'requests',
+          localField: '_id',
+          foreignField: 'cleaner',
+          as: 'completedJobs',
+          pipeline: [
+            {
+              $match: {
+                status: 'completed',
+                rating: { $exists: true }
+              }
+            }
+          ]
+        }
+      },
+      {
+        $addFields: {
+          averageRating: {
+            $cond: {
+              if: { $gt: [{ $size: '$completedJobs' }, 0] },
+              then: { $avg: '$completedJobs.rating' },
+              else: '$stars'
+            }
+          }
+        }
+      },
+      // Apply sorting
+      sortStage,
+      // Then paginate
+      { $skip: (page - 1) * CLEANERS_PER_PAGE },
+      { $limit: CLEANERS_PER_PAGE },
+      // Add standard cleaner processing stages
+      ...getCleanerPipelineStages(),
       {
         $lookup: {
           from: 'requests',
@@ -32,23 +167,46 @@ export async function getAllCleanersForDashboard(_, res){ // tested
       },
       {
         $addFields: {
+          // Include both job-based ratings and direct stars
           averageRating: {
             $cond: {
               if: { $gt: [{ $size: '$completedJobs' }, 0] },
               then: { $avg: '$completedJobs.rating' },
-              else: 0
+              else: { $ifNull: ['$stars', 0] } // Use stars field if no job ratings
             }
           },
-          totalReviews: { $size: '$completedJobs' },
+          // Include both job reviews and direct comments
+          totalReviews: {
+            $add: [
+              { $size: '$completedJobs' },
+              { $size: { $ifNull: ['$comments', []] } }
+            ]
+          },
           reviews: {
-            $map: {
-              input: { $slice: ['$completedJobs', 5] }, // Get last 5 reviews
-              as: 'job',
-              in: {
-                rating: '$$job.rating',
-                review: '$$job.review'
+            $concatArrays: [
+              {
+                $map: {
+                  input: { $slice: ['$completedJobs', 5] },
+                  as: 'job',
+                  in: {
+                    rating: '$$job.rating',
+                    review: '$$job.review',
+                    source: 'job'
+                  }
+                }
+              },
+              {
+                $map: {
+                  input: { $ifNull: ['$comments', []] },
+                  as: 'comment',
+                  in: {
+                    rating: { $ifNull: ['$stars', 5] },
+                    review: '$$comment',
+                    source: 'direct'
+                  }
+                }
               }
-            }
+            ]
           }
         }
       },
@@ -64,8 +222,15 @@ export async function getAllCleanersForDashboard(_, res){ // tested
       return res.status(404).json({ message: 'No cleaners found' });
     }
     
-    // Return the random list of cleaners with ratings
-    res.json(cleaners);
+    // Return cleaners with pagination info
+    res.json({
+      cleaners,
+      pagination: {
+        page,
+        totalCount,
+        hasMore: (page + 1) * CLEANERS_PER_PAGE < totalCount
+      }
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -168,15 +333,28 @@ export async function filterCleaners(req, res) { // tested
       });
     }
 
+    // Get the sort order from the query params
+    const sortBy = req.query.sort || 'rating';
+    let sortStage = {};
+    switch(sortBy) {
+      case 'rating':
+        sortStage = { $sort: { averageRating: -1 } };
+        break;
+      case 'price_high':
+        sortStage = { $sort: { hourlyPrice: -1 } };
+        break;
+      case 'price_low':
+        sortStage = { $sort: { hourlyPrice: 1 } };
+        break;
+    }
+    pipeline.push(sortStage);
+
     // Clean up the output
     pipeline.push({
       $project: {
         completedJobs: 0
       }
     });
-
-    // Add random sampling
-    pipeline.push({ $sample: { size: 20 } });
 
     // Execute the aggregation pipeline
     const cleaners = await Cleaner.aggregate(pipeline);
@@ -491,6 +669,33 @@ export async function getMyProfile(req, res) {
     res.json(cleaner);
   } catch (err) {
     console.error('Error in getMyProfile controller', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Update current cleaner's profile (for authenticated cleaner)
+export async function updateMyProfile(req, res) {
+  try {
+    const cleanerId = req.user.id;
+    const updateData = req.body;
+
+    // Remove password from updateData if it exists
+    delete updateData.password;
+    
+    // Find and update the cleaner
+    const updatedCleaner = await Cleaner.findByIdAndUpdate(
+      cleanerId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).select('-password');
+    
+    if (!updatedCleaner) {
+      return res.status(404).json({ message: 'Cleaner not found' });
+    }
+    
+    res.json(updatedCleaner);
+  } catch (err) {
+    console.error('Error in updateMyProfile controller', err);
     res.status(500).json({ message: 'Server error' });
   }
 };

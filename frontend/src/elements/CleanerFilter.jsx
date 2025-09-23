@@ -45,11 +45,23 @@ const CleanerFilter = ({ onFilter, onClear, isLoading }) => {
     { label: '55+', value: '55-80' }
   ];
 
-  const handleFilterChange = (key, value) => {
-    setFilters(prev => ({
-      ...prev,
+  const handleFilterChange = (key, value, isRemoval = true) => {
+    const newFilters = {
+      ...filters,
       [key]: value
-    }));
+    };
+    setFilters(newFilters);
+
+    // If this is a removal (X button click), apply filters immediately
+    if (isRemoval) {
+      const activeFilters = Object.entries(newFilters).reduce((acc, [key, value]) => {
+        if (value) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {});
+      onFilter(activeFilters);
+    }
   };
 
   const applyFilters = () => {
@@ -123,7 +135,7 @@ const CleanerFilter = ({ onFilter, onClear, isLoading }) => {
               <select
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={filters.price}
-                onChange={(e) => handleFilterChange('price', e.target.value)}
+                onChange={(e) => handleFilterChange('price', e.target.value, false)}
               >
                 <option value="">Any Price</option>
                 {priceRanges.map(range => (
@@ -142,7 +154,7 @@ const CleanerFilter = ({ onFilter, onClear, isLoading }) => {
               <select
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={filters.rating}
-                onChange={(e) => handleFilterChange('rating', e.target.value)}
+                onChange={(e) => handleFilterChange('rating', e.target.value, false)}
               >
                 <option value="">Any Rating</option>
                 {ratingOptions.map(rating => (
@@ -161,7 +173,7 @@ const CleanerFilter = ({ onFilter, onClear, isLoading }) => {
               <select
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={filters.age}
-                onChange={(e) => handleFilterChange('age', e.target.value)}
+                onChange={(e) => handleFilterChange('age', e.target.value, false)}
               >
                 <option value="">Any Age</option>
                 {ageRanges.map(age => (
@@ -180,7 +192,7 @@ const CleanerFilter = ({ onFilter, onClear, isLoading }) => {
               <select
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={filters.gender}
-                onChange={(e) => handleFilterChange('gender', e.target.value)}
+                onChange={(e) => handleFilterChange('gender', e.target.value, false)}
               >
                 <option value="">Any Gender</option>
                 <option value="male">Male</option>
@@ -197,7 +209,7 @@ const CleanerFilter = ({ onFilter, onClear, isLoading }) => {
               <select
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={filters.service}
-                onChange={(e) => handleFilterChange('service', e.target.value)}
+                onChange={(e) => handleFilterChange('service', e.target.value, false)}
               >
                 <option value="">Any Service</option>
                 {serviceOptions.map(service => (

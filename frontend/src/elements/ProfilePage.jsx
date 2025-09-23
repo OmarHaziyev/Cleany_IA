@@ -47,6 +47,10 @@ const ProfilePage = ({ onClose }) => {
         setError('Hourly price must be at least $5');
         return;
       }
+      if (price > 200) {
+        setError('Maximum hourly price is $200');
+        return;
+      }
     }
 
     setSaving(true);
@@ -112,12 +116,6 @@ const ProfilePage = ({ onClose }) => {
           </button>
         </div>
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
-          </div>
-        )}
-
         {profile && (
           <div className="space-y-6">
             {/* Profile Picture Placeholder */}
@@ -179,13 +177,23 @@ const ProfilePage = ({ onClose }) => {
                   Display Name
                 </label>
                 {isEditing ? (
-                  <input
-                    type="text"
-                    className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Enter your name"
-                  />
+                  <div>
+                    <input
+                      type="text"
+                      className={`w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        error && error.includes('Name') ? 'border-red-500' : ''
+                      }`}
+                      value={formData.name}
+                      onChange={(e) => {
+                        setFormData(prev => ({ ...prev, name: e.target.value }));
+                        setError(''); // Clear error when user starts typing
+                      }}
+                      placeholder="Enter your name"
+                    />
+                    {error && error.includes('Name') && (
+                      <p className="text-xs text-red-600 mt-1">{error}</p>
+                    )}
+                  </div>
                 ) : (
                   <div className="px-3 py-2 bg-white border rounded">
                     {profile.name}
@@ -204,12 +212,32 @@ const ProfilePage = ({ onClose }) => {
                       <input
                         type="number"
                         min="5"
+                        max="200"
                         step="0.01"
-                        className="w-full pl-8 pr-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full pl-8 pr-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          error && (error.includes('hourly price') || error.includes('least $5')) ? 'border-red-500' : ''
+                        }`}
                         value={formData.hourlyPrice}
-                        onChange={(e) => setFormData(prev => ({ ...prev, hourlyPrice: e.target.value }))}
-                        placeholder="Enter hourly price"
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value);
+                          setFormData(prev => ({ ...prev, hourlyPrice: e.target.value }));
+                          if (value < 5) {
+                            setError('Hourly price must be at least $5');
+                          } else if (value > 200) {
+                            setError('Maximum hourly price is $200');
+                          } else {
+                            setError('');
+                          }
+                        }}
+                        placeholder="Enter hourly price ($5 - $200)"
                       />
+                      {error && (error.includes('hourly price') || error.includes('least $5')) ? (
+                        <p className="text-xs text-red-600 mt-1">{error}</p>
+                      ) : (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Hourly rate must be between $5 and $200
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div className="px-3 py-2 bg-white border rounded flex items-center gap-1">

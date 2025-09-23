@@ -17,7 +17,11 @@ export const protect = (req, res, next) => {
     next();  // Proceed to the next middleware/route handler
   } catch (err) {
     console.error('JWT verification failed', err);
-    res.status(401).json({ message: 'Not authorized, token failed' });
+    // Check if error is due to token expiration
+    const message = err.name === 'TokenExpiredError' 
+      ? 'Session expired, please log in again'
+      : 'Not authorized, token failed';
+    res.status(401).json({ message });
   }
 };
 

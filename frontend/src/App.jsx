@@ -3,6 +3,7 @@ import { User, X } from 'lucide-react';
 import Login from './elements/Login.jsx';
 import CliDashboard from './elements/CliDashboard.jsx';
 import CleDashboard from './elements/CleDashboard.jsx';
+import SessionExpiredNotification from './elements/SessionExpiredNotification.jsx';
 
 // API Configuration
 export const API_BASE = 'http://localhost:5001/api';
@@ -39,6 +40,12 @@ export const api = {
       const data = await response.json();
       
       if (!response.ok) {
+        if (response.status === 401) {
+          // Always handle 401 as session expiration
+          window.dispatchEvent(new CustomEvent('tokenExpired'));
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
         throw new Error(data.message || `HTTP error! status: ${response.status}`);
       }
       
@@ -56,10 +63,9 @@ export const api = {
   registerCleaner: (data) => api.request('/cleaners', { method: 'POST', body: data }),
 
   // Cleaner endpoints
-  getAllCleaners: () => api.request('/cleaners'),
+  getAllCleaners: (page = 0, sortBy = 'rating') => api.request(`/cleaners?page=${page}&sort=${sortBy}`),
   getCleanerById: (id) => api.request(`/cleaners/${id}`),
   filterCleaners: (filters) => api.request('/cleaners/filter', { method: 'POST', body: filters }),
-  // In App.jsx, in the api object, add this line:
   getCompletedJobs: (cleanerId) => api.request(`/jobs/cleaner/${cleanerId}/completed`),
 
   // Request endpoints
@@ -69,15 +75,10 @@ export const api = {
   updateRequestStatus: (requestId, status) => api.request(`/requests/${requestId}`, { method: 'PUT', body: { status } }),
   applyToOffer: (requestId) => api.request(`/requests/general/${requestId}/apply`, { method: 'POST' }),
   getPendingOffers: () => api.request('/offers/pending'),
+  getPendingRequests: () => api.request('/requests/client/pending'),
   selectCleanerForOffer: (requestId, applicationId) => api.request(`/offers/${requestId}/select/${applicationId}`, { method: 'POST' }),
   rateRequest: (requestId, rating, review) => api.request(`/requests/${requestId}/rate`, { method: 'PUT', body: { rating, review } }),
   getCompletedJobsForClient: (clientId) => api.request(`/jobs/client/${clientId}/completed`),
-
-  // Auth endpoints
-  loginClient: (credentials) => api.request('/clients/login', { method: 'POST', body: credentials }),
-  loginCleaner: (credentials) => api.request('/cleaners/login', { method: 'POST', body: credentials }),
-  registerClient: (data) => api.request('/clients', { method: 'POST', body: data }),
-  registerCleaner: (data) => api.request('/cleaners', { method: 'POST', body: data }),
 
   // Profile endpoints
   getMyProfile: (userType) => api.request(`/profile/${userType}`),
@@ -168,6 +169,16 @@ const AuthProvider = ({ children }) => {
 const App = () => {
   const { user, loading } = useAuth();
   const [toast, setToast] = useState(null);
+  const [showSessionExpired, setShowSessionExpired] = useState(false);
+
+  useEffect(() => {
+    const handleTokenExpired = () => {
+      setShowSessionExpired(true);
+    };
+
+    window.addEventListener('tokenExpired', handleTokenExpired);
+    return () => window.removeEventListener('tokenExpired', handleTokenExpired);
+  }, []);
 
   if (loading) {
     return <Loading />;
@@ -181,6 +192,17 @@ const App = () => {
         <CliDashboard />
       ) : (
         <CleDashboard />
+      )}
+      
+      {showSessionExpired && (
+        <SessionExpiredNotification 
+          onClose={() => {
+            setShowSessionExpired(false);
+            setUser(null);
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+          }} 
+        />
       )}
       
       {toast && (

@@ -505,5 +505,25 @@ export async function selectCleanerForOffer(req, res) {
   }
 }
 
+// Get pending requests for a client
+export async function getPendingRequests(req, res) {
+  try {
+    const clientId = req.user.id;
+    
+    const pendingRequests = await Request.find({
+      client: clientId,
+      status: 'pending',
+      requestType: 'specific'
+    })
+    .populate('cleaner', 'name email hourlyPrice service stars')
+    .sort({ createdAt: -1 });
+
+    res.json(pendingRequests);
+  } catch (err) {
+    console.error('Error fetching pending requests:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+}
+
 // Export the auto-completion function for use in other parts of the app
 export { checkAndCompleteJobs };
