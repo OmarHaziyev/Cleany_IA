@@ -100,10 +100,10 @@ export async function getAllCleanersForDashboard(req, res){ // tested
         sortStage = { $sort: { averageRating: -1 } };
         break;
       case 'price_high':
-        sortStage = { $sort: { hourlyPrice: -1 } };
+        sortStage = { $sort: { hourlyPrice: 1 } };
         break;
       case 'price_low':
-        sortStage = { $sort: { hourlyPrice: 1 } };
+        sortStage = { $sort: { hourlyPrice: -1 } };
         break;
     }
     
