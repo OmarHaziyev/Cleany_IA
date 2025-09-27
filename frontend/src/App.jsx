@@ -1,5 +1,4 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { User, X } from 'lucide-react';
 import Login from './elements/Login.jsx';
 import CliDashboard from './elements/CliDashboard.jsx';
 import CleDashboard from './elements/CleDashboard.jsx';

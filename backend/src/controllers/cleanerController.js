@@ -5,23 +5,25 @@ import mongoose from "mongoose";
 
 // Helper function to get standard cleaner pipeline stages
 const getCleanerPipelineStages = () => [
-  {
+  { //initial data lookup
     $lookup: {
-      from: 'requests',
-      localField: '_id',
-      foreignField: 'cleaner',
-      as: 'completedJobs',
+      from: 'requests', //join with the requests collection
+      localField: '_id', //the one we are querying
+      foreignField: 'cleaner', //to match the requests.cleaner field
+      as: 'completedJobs', //store as completedJobs array
       pipeline: [
         {
-          $match: {
-            status: 'completed',
-            rating: { $exists: true, $ne: null }
+          $match: { //filter criteria for joined documents
+            status: 'completed', //only take jobs that are completed
+            rating: { $exists: true, $ne: null } //only the requests that have a rating 
           }
         },
         {
+          //Project specific fields from matched requests
           $project: {
             rating: 1,
             review: 1
+            //include rating and review fields
           }
         }
       ]
@@ -29,57 +31,36 @@ const getCleanerPipelineStages = () => [
   },
   {
     $addFields: {
-      // Combine job ratings with initial stars
+      // Calculate average rating from completed jobs
       averageRating: {
         $cond: {
-          if: { $gt: [{ $size: '$completedJobs' }, 0] },
-          then: { $avg: '$completedJobs.rating' },
-          else: '$stars'
+          if: { $gt: [{ $size: '$completedJobs' }, 0] }, //if completed jobs are more than 0
+          then: { $avg: '$completedJobs.rating' }, //average of ratings 
+          else: 0 //if no completed jobs, averageRating = 0
         }
       },
-      // Combine job reviews with initial comments
+
+      // Map completed jobs to reviews
       allReviews: {
-        $concatArrays: [
-          {
-            $map: {
-              input: '$completedJobs',
-              as: 'job',
-              in: {
-                rating: '$$job.rating',
-                review: '$$job.review',
-                source: 'job'
-              }
-            }
-          },
-          {
-            $map: {
-              input: { $ifNull: ['$comments', []] },
-              as: 'comment',
-              in: {
-                rating: '$stars',
-                review: '$$comment',
-                source: 'initial'
-              }
-            }
+        $map: {  // basically a for loop
+          input: '$completedJobs', // array
+          as: 'job', // variable name for each array element
+          in: {
+            rating: '$$job.rating', 
+            review: '$$job.review', //extract review and rating
+            source: 'job' //source identifier
+            
           }
-        ]
-      }
+        }
+      },
+      // Calculate total number of reviews
+      totalReviews: { $size: '$completedJobs' }
     }
   },
-  {
-    $addFields: {
-      totalReviews: { 
-        $add: [
-          { $size: '$completedJobs' },
-          { $size: { $ifNull: ['$comments', []] } }
-        ]
-      }
-    }
-  },
-  {
+  { //Final projection to shape output document
     $project: {
-      completedJobs: 0,
-      password: 0
+      completedJobs: 0, //exclude completedJobs from output
+      password: 0 //exclude password for security
     }
   }
 ];
@@ -87,7 +68,7 @@ const getCleanerPipelineStages = () => [
 export async function getAllCleanersForDashboard(req, res){ // tested
    try {
     const page = parseInt(req.query.page) || 1; // Page number (1-based)
-    const CLEANERS_PER_PAGE = 9; // Show 9 cleaners per page (3x3 grid)
+    const CLEANERS_PER_PAGE = 12; // Show 12 cleaners per page (4x3 grid)
     const sortBy = req.query.sort || 'rating'; // Default sort by rating
     
     // First, get the total count of cleaners
@@ -100,10 +81,10 @@ export async function getAllCleanersForDashboard(req, res){ // tested
         sortStage = { $sort: { averageRating: -1 } };
         break;
       case 'price_high':
-        sortStage = { $sort: { hourlyPrice: 1 } };
+        sortStage = { $sort: { hourlyPrice: -1 } };  // Higher prices first
         break;
       case 'price_low':
-        sortStage = { $sort: { hourlyPrice: -1 } };
+        sortStage = { $sort: { hourlyPrice: 1 } };   // Lower prices first
         break;
     }
     

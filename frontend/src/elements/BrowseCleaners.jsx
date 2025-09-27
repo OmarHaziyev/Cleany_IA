@@ -17,10 +17,10 @@ const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
     fetchCleaners(1, sortBy);
   }, [sortBy]);
 
-  const fetchCleaners = async (page = 1) => {
+  const fetchCleaners = async (page = 1, currentSortBy = sortBy) => {
     setLoading(true);
     try {
-      const response = await api.getAllCleaners(page, sortBy);
+      const response = await api.getAllCleaners(page, currentSortBy);
       setCleaners(response.cleaners);
       setTotalPages(Math.ceil(response.pagination.totalCount / ITEMS_PER_PAGE));
       setError('');
@@ -35,7 +35,7 @@ const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
-    fetchCleaners(page);
+    fetchCleaners(page, sortBy);
   };
 
   const handleSortChange = (newSortBy) => {
@@ -66,7 +66,8 @@ const BrowseCleaners = ({ onHireCleaner, onViewProfile }) => {
 
   const handleClearFilter = () => {
     setCurrentPage(1);
-    fetchCleaners(1, sortBy);
+    fetchCleaners(1, 'rating');  // Reset to default sort
+    setSortBy('rating');
   };
 
   const getAvailableDays = (schedule) => {

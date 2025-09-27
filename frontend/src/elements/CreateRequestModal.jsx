@@ -23,11 +23,18 @@ const CreateRequestModal = ({ cleanerId, onClose, onSuccess }) => {
     }
   }, [cleanerId]);
 
-  // Calculate price when time changes
+  /**
+   * Auto-recalculate price whenever time inputs or cleaner data changes
+   * Dependencies: formData.startTime, formData.endTime, cleaner
+   */
   useEffect(() => {
     calculatePrice();
   }, [formData.startTime, formData.endTime, cleaner]);
 
+  /**
+   * Fetches cleaner's details including hourly rate and services
+   * Updates cleaner state or sets error if fetch fails
+   */
   const fetchCleanerDetails = async () => {
     try {
       const cleanerData = await api.getCleanerById(cleanerId);
@@ -38,7 +45,12 @@ const CreateRequestModal = ({ cleanerId, onClose, onSuccess }) => {
     }
   };
 
+  /**
+   * Calculates total price based on duration and cleaner's hourly rate
+   * Handles time validation and conversion from HH:MM format
+   */
   const calculatePrice = () => {
+    // Reset calculations if required data is missing
     if (!formData.startTime || !formData.endTime || !cleaner) {
       setTotalPrice(0);
       setDuration(0);
@@ -46,21 +58,26 @@ const CreateRequestModal = ({ cleanerId, onClose, onSuccess }) => {
     }
 
     try {
+      // Parse hours and minutes from time strings
       const [startHour, startMinute] = formData.startTime.split(':').map(Number);
       const [endHour, endMinute] = formData.endTime.split(':').map(Number);
       
+      // Convert times to minutes since midnight for easier comparison
       const startTotalMinutes = startHour * 60 + startMinute;
       const endTotalMinutes = endHour * 60 + endMinute;
       
+      // Validate end time is after start time
       if (endTotalMinutes <= startTotalMinutes) {
         setTotalPrice(0);
         setDuration(0);
         return;
       }
       
+      // Calculate duration in hours and final price
       const durationHours = (endTotalMinutes - startTotalMinutes) / 60;
       const price = durationHours * cleaner.hourlyPrice;
       
+      // Update state with calculated values
       setDuration(durationHours);
       setTotalPrice(price);
     } catch (err) {
@@ -148,6 +165,7 @@ const CreateRequestModal = ({ cleanerId, onClose, onSuccess }) => {
             </p>
           </div>
           
+          {/* Date picker with past date validation */}
           <div>
             <label className="block text-sm font-medium mb-1">Date</label>
             <input
@@ -155,11 +173,13 @@ const CreateRequestModal = ({ cleanerId, onClose, onSuccess }) => {
               className="w-full px-3 py-2 border rounded"
               value={formData.date}
               onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+              // Prevent selecting past dates by setting minimum date to today
               min={new Date().toISOString().split('T')[0]}
               required
             />
           </div>
           
+          {/* Time selection grid with start and end time inputs */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Start Time</label>

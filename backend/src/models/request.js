@@ -157,27 +157,40 @@ requestSchema.pre('save', function(next) {
   next();
 });
 
-// Instance method to calculate duration in hours
-requestSchema.methods.getDuration = function() {
-  const [startHour, startMinute] = this.startTime.split(':').map(Number);
-  const [endHour, endMinute] = this.endTime.split(':').map(Number);
-  
-  const startTotalMinutes = startHour * 60 + startMinute;
-  const endTotalMinutes = endHour * 60 + endMinute;
-  
-  return (endTotalMinutes - startTotalMinutes) / 60;
-};
+  /**
+   * Calculates the duration of a cleaning request in hours
+   * @method getDuration
+   * @returns {number} Duration in hours (decimal format)
+   */
+  requestSchema.methods.getDuration = function() {
+    // Parse hours and minutes from HH:MM format strings into numbers
+    const [startHour, startMinute] = this.startTime.split(':').map(Number);
+    const [endHour, endMinute] = this.endTime.split(':').map(Number);
+    
+    // Convert hours and minutes to total minutes since midnight
+    const startTotalMinutes = startHour * 60 + startMinute;
+    const endTotalMinutes = endHour * 60 + endMinute;
+    
+    // Convert difference from minutes to hours (returns decimal hours)
+    return (endTotalMinutes - startTotalMinutes) / 60;
+  };
 
-// Instance method to check if request is in the past
-requestSchema.methods.isPast = function() {
-  const requestDateTime = new Date(this.date);
-  const [hour, minute] = this.endTime.split(':').map(Number);
-  requestDateTime.setHours(hour, minute, 0, 0);
-  
-  return requestDateTime < new Date();
-};
-
-// Instance method to check if request should be auto-completed
+  /**
+   * Validates if the request's datetime has already passed
+   * @method isPast
+   * @returns {boolean} true if request time is in the past, false otherwise
+   */
+  requestSchema.methods.isPast = function() {
+    // Create Date object from request's date field
+    const requestDateTime = new Date(this.date);
+    // Extract hour and minute from endTime string
+    const [hour, minute] = this.endTime.split(':').map(Number);
+    // Set the exact time of the request's completion
+    requestDateTime.setHours(hour, minute, 0, 0);
+    
+    // Compare with current time to determine if it's in the past
+    return requestDateTime < new Date();
+  };// Instance method to check if request should be auto-completed
 requestSchema.methods.shouldAutoComplete = function() {
   if (this.status !== 'accepted') return false;
   
